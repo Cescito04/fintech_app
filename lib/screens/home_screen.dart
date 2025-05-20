@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../widgets/virtual_card.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import '../services/database_helper.dart';
+import 'package:intl/intl.dart';
+import '../models/topup.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -10,45 +15,132 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
-  double _balance = 25000.0; // Donnée statique
+  double _balance = 0.0;
+  List<TopUp> _recentTransactions = [];
+  final DatabaseHelper _databaseHelper = DatabaseHelper();
 
-  Future<void> _fetchBalance() async {
+  Future<void> _fetchData() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
 
-    // Simuler un délai de chargement
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final user = context.read<AuthProvider>().user;
+      if (user != null) {
+        final balance = await _databaseHelper.getUserBalance(user.id!);
+        final transactions = await _databaseHelper.getUserTopUps(user.id!);
 
-    setState(() {
-      _isLoading = false;
-    });
+        if (!mounted) return;
+        setState(() {
+          _balance = balance;
+          _recentTransactions = transactions.take(10).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   void initState() {
     super.initState();
-    _fetchBalance();
+    _fetchData();
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Accueil'),
-        centerTitle: true,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.account_balance_wallet,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Fintech App',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        centerTitle: false,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/login');
-            },
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () {
+                Navigator.pushNamed(context, '/settings');
+              },
+              tooltip: 'Paramètres',
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Déconnexion'),
+                    content:
+                        const Text('Voulez-vous vraiment vous déconnecter ?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Annuler'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.pushReplacementNamed(context, '/login');
+                        },
+                        child: const Text(
+                          'Déconnecter',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              tooltip: 'Déconnexion',
+            ),
           ),
         ],
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _fetchBalance,
+          onRefresh: _fetchData,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -56,13 +148,103 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(16.0),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    // En-tête avec le nom de l'utilisateur
+                    Text(
+                      'Bonjour, ${user?.fullName ?? ""}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                     // Carte virtuelle
-                    VirtualCard(
-                      fullName: 'John Doe',
-                      cardNumber: '4532 •••• •••• 7895',
-                      expiryDate: '12/25',
-                      balance: _balance,
-                      isLoading: _isLoading,
+                    Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Theme.of(context).primaryColor,
+                            Theme.of(context).primaryColor.withOpacity(0.8),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Carte Virtuelle',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.credit_card,
+                                  color: Colors.white,
+                                  size: 30,
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            Text(
+                              user?.fullName ?? "",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              user?.cardNumber
+                                      .replaceRange(4, 12, '•••• ••••') ??
+                                  '•••• •••• •••• ••••',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  '12/25',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                Text(
+                                  '${_balance.toStringAsFixed(0)} FCFA',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -73,8 +255,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         _buildActionButton(
                           icon: Icons.add,
                           label: 'Recharger',
-                          onTap: () {
-                            // TODO: Implémenter la recharge
+                          onTap: () async {
+                            await Navigator.pushNamed(context, '/topup');
+                            _fetchData(); // Rafraîchir les données après une recharge
                           },
                         ),
                         _buildActionButton(
@@ -88,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.history,
                           label: 'Historique',
                           onTap: () {
-                            // TODO: Implémenter l'historique
+                            Navigator.pushNamed(context, '/history');
                           },
                         ),
                       ],
@@ -107,44 +290,73 @@ class _HomeScreenState extends State<HomeScreen> {
                   ]),
                 ),
               ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              index % 2 == 0
-                                  ? Colors.green.withOpacity(0.1)
-                                  : Colors.red.withOpacity(0.1),
-                          child: Icon(
-                            index % 2 == 0
-                                ? Icons.arrow_downward
-                                : Icons.arrow_upward,
-                            color: index % 2 == 0 ? Colors.green : Colors.red,
+              if (_isLoading)
+                const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_recentTransactions.isEmpty)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: Text('Aucune transaction récente'),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final transaction = _recentTransactions[index];
+                        final dateFormat =
+                            DateFormat('d MMM yyyy à HH:mm', 'fr_FR');
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.green.withOpacity(0.1),
+                              child: const Icon(
+                                Icons.arrow_downward,
+                                color: Colors.green,
+                              ),
+                            ),
+                            title: Text(
+                              '${transaction.amount.toStringAsFixed(0)} FCFA',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Via ${transaction.service}',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '+${transaction.amount.toStringAsFixed(0)} FCFA',
+                                  style: const TextStyle(
+                                    color: Colors.green,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  dateFormat.format(transaction.createdAt),
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        title: Text(
-                          index % 2 == 0 ? 'Reçu de John' : 'Envoyé à Marie',
-                        ),
-                        subtitle: Text(
-                          '${index + 1} Mars 2024',
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        trailing: Text(
-                          '${index % 2 == 0 ? '+' : '-'}${(index + 1) * 1000} FCFA',
-                          style: TextStyle(
-                            color: index % 2 == 0 ? Colors.green : Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    );
-                  }, childCount: 5),
+                        );
+                      },
+                      childCount: _recentTransactions.length,
+                    ),
+                  ),
                 ),
-              ),
               const SliverPadding(padding: EdgeInsets.only(bottom: 16.0)),
             ],
           ),
