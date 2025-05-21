@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/database_helper.dart';
+import '../services/notification_service.dart';
 import '../models/transfer.dart';
 
 class TransferScreen extends StatefulWidget {
@@ -111,12 +112,19 @@ class _TransferScreenState extends State<TransferScreen> {
         fromPhone: user.phone,
         toPhone: recipientPhone,
         amount: amount,
-        createdAt: DateTime.now().toUtc(),
+        createdAt: DateTime.now(),
       );
 
       await _databaseHelper.createTransfer(transfer);
 
       if (mounted) {
+        // Notification de succès
+        await NotificationService().showNotification(
+          title: 'Transfert réussi',
+          body:
+              'Vous avez envoyé ${amount.toStringAsFixed(0)} FCFA à ${recipient['fullName']}',
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Transfert effectué avec succès'),
@@ -127,6 +135,14 @@ class _TransferScreenState extends State<TransferScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // Notification d'erreur
+        await NotificationService().showNotification(
+          title: 'Erreur de transfert',
+          body: e.toString(),
+          playSound: true,
+          vibrate: true,
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur: ${e.toString()}'),

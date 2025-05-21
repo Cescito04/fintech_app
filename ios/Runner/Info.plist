@@ -45,5 +45,18 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Nous avons besoin de votre permission pour vous envoyer des notifications concernant vos transactions.</string>
+	<key>NSUserNotificationAlertStyle</key>
+	<string>alert</string>
+	<key>NSUserNotificationSoundName</key>
+	<string>default</string>
+	<key>NSUserNotificationCenterDelegate</key>
+	<string>$(PRODUCT_MODULE_NAME).NotificationService</string>
 </dict>
 </plist>

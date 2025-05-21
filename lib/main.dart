@@ -9,10 +9,16 @@ import 'screens/topup_screen.dart';
 import 'screens/transaction_history_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/transfer_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR');
+
+  // Initialiser les notifications
+  final notificationService = NotificationService();
+  await notificationService.initialize();
+
   runApp(const MyApp());
 }
 

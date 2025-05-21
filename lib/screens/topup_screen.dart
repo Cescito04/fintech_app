@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/topup.dart';
 import '../services/database_helper.dart';
+import '../services/notification_service.dart';
 import '../widgets/topup_form.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -19,6 +20,13 @@ class _TopUpScreenState extends State<TopUpScreen> {
     try {
       await _databaseHelper.createTopUp(topUp);
       if (mounted) {
+        // Notification de succès
+        await NotificationService().showNotification(
+          title: 'Recharge réussie',
+          body:
+              'Votre compte a été rechargé de ${topUp.amount.toStringAsFixed(0)} FCFA',
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Recharge effectuée avec succès'),
@@ -29,6 +37,14 @@ class _TopUpScreenState extends State<TopUpScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // Notification d'erreur
+        await NotificationService().showNotification(
+          title: 'Erreur de recharge',
+          body: e.toString(),
+          playSound: true,
+          vibrate: true,
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur: ${e.toString()}'),
