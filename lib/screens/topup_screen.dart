@@ -55,7 +55,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
             // Affichage du solde
             FutureBuilder<double>(
               future: user != null
-                  ? _databaseHelper.getUserBalance(user.id!)
+                  ? _databaseHelper.getUserBalance(user.phone)
                   : Future.value(0.0),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {

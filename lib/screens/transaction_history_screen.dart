@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../services/database_helper.dart';
-import '../models/topup.dart';
 
 class TransactionHistoryScreen extends StatelessWidget {
   const TransactionHistoryScreen({super.key});
@@ -18,9 +17,9 @@ class TransactionHistoryScreen extends StatelessWidget {
         title: const Text('Historique des transactions'),
         centerTitle: true,
       ),
-      body: FutureBuilder<List<TopUp>>(
+      body: FutureBuilder<List<Map<String, dynamic>>>(
         future: user != null
-            ? databaseHelper.getUserTopUps(user.id!)
+            ? databaseHelper.getUserTransactions(user.phone)
             : Future.value([]),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -67,32 +66,59 @@ class TransactionHistoryScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final transaction = transactions[index];
               final dateFormat = DateFormat('d MMMM yyyy à HH:mm', 'fr_FR');
+              final amount = transaction['amount'] as double;
+              final type = transaction['transactionType'] as String;
+              final description = transaction['description'] as String;
+
+              // Déterminer l'icône et la couleur en fonction du type de transaction
+              IconData icon;
+              Color color;
+              String prefix = '';
+
+              switch (type) {
+                case 'topup':
+                  icon = Icons.add_circle;
+                  color = Colors.green;
+                  prefix = '+';
+                  break;
+                case 'transfer_sent':
+                  icon = Icons.send;
+                  color = Colors.red;
+                  prefix = '-';
+                  break;
+                case 'transfer_received':
+                  icon = Icons.call_received;
+                  color = Colors.green;
+                  prefix = '+';
+                  break;
+                default:
+                  icon = Icons.payment;
+                  color = Colors.blue;
+              }
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: Colors.blue.withOpacity(0.1),
-                    child: const Icon(
-                      Icons.add_circle,
-                      color: Colors.blue,
-                    ),
+                    backgroundColor: color.withOpacity(0.1),
+                    child: Icon(icon, color: color),
                   ),
                   title: Text(
-                    '${transaction.amount.toStringAsFixed(0)} FCFA',
-                    style: const TextStyle(
+                    '$prefix${amount.toStringAsFixed(0)} FCFA',
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
+                      color: color,
                     ),
                   ),
                   subtitle: Text(
-                    'Via ${transaction.service}',
+                    description,
                     style: const TextStyle(
                       color: Colors.grey,
                     ),
                   ),
                   trailing: Text(
-                    dateFormat.format(transaction.createdAt),
+                    dateFormat.format(DateTime.parse(transaction['createdAt'])),
                     style: const TextStyle(
                       color: Colors.grey,
                       fontSize: 12,

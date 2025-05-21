@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import '../widgets/virtual_card.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../services/database_helper.dart';
-import 'package:intl/intl.dart';
-import '../models/topup.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   double _balance = 0.0;
-  List<TopUp> _recentTransactions = [];
+  List<Map<String, dynamic>> _recentTransactions = [];
   final DatabaseHelper _databaseHelper = DatabaseHelper();
 
   Future<void> _fetchData() async {
@@ -29,8 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = context.read<AuthProvider>().user;
       if (user != null) {
-        final balance = await _databaseHelper.getUserBalance(user.id!);
-        final transactions = await _databaseHelper.getUserTopUps(user.id!);
+        final balance = await _databaseHelper.getUserBalance(user.phone);
+        final transactions =
+            await _databaseHelper.getUserTransactions(user.phone);
 
         if (!mounted) return;
         setState(() {
@@ -44,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _isLoading = false;
       });
+      debugPrint('Error fetching data: $e');
     }
   }
 
@@ -56,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
+    final dateFormat = DateFormat('d MMM yyyy à HH:mm', 'fr_FR');
 
     return Scaffold(
       appBar: AppBar(
@@ -111,25 +112,77 @@ class _HomeScreenState extends State<HomeScreen> {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Déconnexion'),
-                    content:
-                        const Text('Voulez-vous vraiment vous déconnecter ?'),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.logout,
+                            color: Colors.red,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Déconnexion',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    content: const Text(
+                      'Êtes-vous sûr de vouloir vous déconnecter ?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Annuler'),
+                        child: const Text(
+                          'Annuler',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 16,
+                          ),
+                        ),
                       ),
-                      TextButton(
+                      ElevatedButton(
                         onPressed: () {
                           Navigator.pop(context);
                           Navigator.pushReplacementNamed(context, '/login');
                         },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                        ),
                         child: const Text(
                           'Déconnecter',
-                          style: TextStyle(color: Colors.red),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
+                    actionsPadding: const EdgeInsets.all(16),
                   ),
                 );
               },
@@ -157,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
+
                     // Carte virtuelle
                     Container(
                       height: 200,
@@ -257,14 +311,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           label: 'Recharger',
                           onTap: () async {
                             await Navigator.pushNamed(context, '/topup');
-                            _fetchData(); // Rafraîchir les données après une recharge
+                            _fetchData();
                           },
                         ),
                         _buildActionButton(
                           icon: Icons.send,
                           label: 'Transférer',
-                          onTap: () {
-                            // TODO: Implémenter le transfert
+                          onTap: () async {
+                            await Navigator.pushNamed(context, '/transfer');
+                            _fetchData();
                           },
                         ),
                         _buildActionButton(
@@ -277,19 +332,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
-
-                    // Section des transactions récentes
-                    const Text(
-                      'Transactions récentes',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
                   ]),
                 ),
               ),
+
+              // Section des transactions
               if (_isLoading)
                 const SliverFillRemaining(
                   child: Center(child: CircularProgressIndicator()),
@@ -307,48 +354,69 @@ class _HomeScreenState extends State<HomeScreen> {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final transaction = _recentTransactions[index];
-                        final dateFormat =
-                            DateFormat('d MMM yyyy à HH:mm', 'fr_FR');
+                        final amount = transaction['amount'] as double;
+                        final type = transaction['transactionType'] as String;
+                        final description =
+                            transaction['description'] as String;
+                        final dateString = transaction['createdAt'] as String;
+
+                        // Parse the date
+                        final date = DateTime.parse(dateString);
+                        final formattedDate = dateFormat.format(date);
+
+                        // Déterminer l'icône et la couleur
+                        IconData icon;
+                        Color color;
+                        String prefix = '';
+
+                        switch (type) {
+                          case 'topup':
+                            icon = Icons.add_circle;
+                            color = Colors.green;
+                            prefix = '+';
+                            break;
+                          case 'transfer_sent':
+                            icon = Icons.send;
+                            color = Colors.red;
+                            prefix = '-';
+                            break;
+                          case 'transfer_received':
+                            icon = Icons.call_received;
+                            color = Colors.green;
+                            prefix = '+';
+                            break;
+                          default:
+                            icon = Icons.payment;
+                            color = Colors.blue;
+                        }
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: Colors.green.withOpacity(0.1),
-                              child: const Icon(
-                                Icons.arrow_downward,
-                                color: Colors.green,
-                              ),
+                              backgroundColor: color.withOpacity(0.1),
+                              child: Icon(icon, color: color),
                             ),
                             title: Text(
-                              '${transaction.amount.toStringAsFixed(0)} FCFA',
-                              style: const TextStyle(
+                              '$prefix${amount.toStringAsFixed(0)} FCFA',
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: color,
                               ),
                             ),
                             subtitle: Text(
-                              'Via ${transaction.service}',
-                              style: const TextStyle(color: Colors.grey),
+                              description,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                              ),
                             ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  '+${transaction.amount.toStringAsFixed(0)} FCFA',
-                                  style: const TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  dateFormat.format(transaction.createdAt),
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
+                            trailing: Text(
+                              formattedDate,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         );

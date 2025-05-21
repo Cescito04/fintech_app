@@ -8,6 +8,7 @@ import 'screens/home_screen.dart';
 import 'screens/topup_screen.dart';
 import 'screens/transaction_history_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/transfer_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -89,6 +90,7 @@ class MyApp extends StatelessWidget {
           '/login': (context) => const LoginScreen(),
           '/register': (context) => const RegisterScreen(),
           '/home': (context) => const HomeScreen(),
+          '/transfer': (context) => const TransferScreen(),
           '/topup': (context) => const TopUpScreen(),
           '/history': (context) => const TransactionHistoryScreen(),
           '/settings': (context) => const SettingsScreen(),
